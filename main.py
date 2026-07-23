@@ -1,11 +1,19 @@
 from datetime import datetime, timedelta
 import random
 from flask import Flask, jsonify, request
+import requests
 
 app = Flask(__name__)
 
-BOT_START_TIME = datetime.now()
+# ==========================================
+# 🔑 ДАННЫЕ ИЗ GREEN API:
+ID_INSTANCE = "71072260715"
+API_TOKEN = "38c0a3003c22469cad11461cd9f72335793bd5303fe8450baf"
+# ==========================================
 
+GREEN_API_URL = f"https://api.green-api.com/waInstance{ID_INSTANCE}/sendMessage/{API_TOKEN}"
+
+BOT_START_TIME = datetime.now()
 users = {}
 
 RANKS = [
@@ -15,6 +23,17 @@ RANKS = [
     ("Золото", 200),
     ("Алмаз", 500),
 ]
+
+
+def send_whatsapp_message(chat_id, text):
+  """Функция для отправки сообщения обратно в WhatsApp чат/группу"""
+  payload = {"chatId": chat_id, "message": text}
+  headers = {"Content-Type": "application/json"}
+
+  try:
+    requests.post(GREEN_API_URL, json=payload, headers=headers, timeout=5)
+  except Exception as e:
+    print(f"Ошибка при отправке в WhatsApp: {e}")
 
 
 def get_uptime():
@@ -86,7 +105,7 @@ def bite_coins(user):
 
   if coins["gold"] > 0 and random.random() < 0.01:
     coins["gold"] -= 1
-    return "🧀 КУСЬ! Внезапно кошка откусила кусочек от Золотой монеты! (Своих не едят, но тут не удержалась!)"
+    return "🧀 КУСЬ! Внезапно кошка откусила кусочек от Золотой монеты!"
 
   if coins["diamond"] > 0:
     return "🦷 КРАК! Кошка попыталась грызть Алмаз, чуть не сломала зуб и удрала!"
@@ -101,12 +120,9 @@ def process_command(user_id, user_name, msg):
 
   if msg_lower == "!меню":
     return (
-        "📜 *МЕНЮ КОМАНД* 📜\n"
-        "!пинг — аптайм и задержка\n"
-        "!ранг я — ваш профиль и монеты\n"
-        "!трейд [XP] — обмен 5 XP на 1 Бронзу\n"
-        "!кошка — погладить Золотую Кошку\n"
-        "!лотерея [1/2/3] — испытать удачу"
+        "📜 *МЕНЮ КОМАНД* 📜\n!пинг — аптайм и задержка\n!ранг я — ваш"
+        " профиль и монеты\n!трейд [XP] — обмен 5 XP на 1 Бронзу\n!кошка —"
+        " погладить Золотую Кошку\n!лотерея [1/2/3] — испытать удачу"
     )
 
   elif msg_lower == "!пинг":
@@ -131,7 +147,6 @@ def process_command(user_id, user_name, msg):
     if not rank_str:
       rank_str = f"Алмаз {limit * multiplier}/{limit * multiplier}"
 
-    # Подготовка строк эффектов без ошибок синтаксиса
     ludoman_str = (
         f"{user['ludoman_charges']} шт."
         if user["ludoman_charges"] > 0
@@ -146,7 +161,6 @@ def process_command(user_id, user_name, msg):
       cool_str = f"{hrs:02d}:{mins:02d} осталось"
 
     dobri_str = "Имеется" if user["dobri_charges"] > 0 else "Не имеется"
-
     lucky_str = (
         "Имеется"
         if (user["lucky_until"] and datetime.now() < user["lucky_until"])
@@ -256,19 +270,27 @@ def process_command(user_id, user_name, msg):
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
-  data = request.json
-  try:
-    sender_id = data.get("sender_id")
-    sender_name = data.get("sender_name", "Игрок")
-    text = data.get("text", "")
+  data = request.json or {}
 
+  # Парсинг данных от Green API
+  sender_data = data.get("senderData", {})
+  sender_id = sender_data.get("sender", "unknown_user")
+  sender_name = sender_data.get("senderName", "Игрок")
+
+  # Получение чата (личка или группа)
+  chat_id = data.get("keyRemoteJid") or sender_data.get("chatId")
+
+  message_data = data.get("messageData", {})
+  text_data = message_data.get("textMessageData", {})
+  text = text_data.get("textMessage", "")
+
+  # Если получена текстовая команда — отправляем ответ в WhatsApp
+  if text and chat_id:
     reply = process_command(sender_id, sender_name, text)
     if reply:
-      return jsonify({"status": "success", "reply": reply})
-  except Exception as e:
-    return jsonify({"status": "error", "message": str(e)})
+      send_whatsapp_message(chat_id, reply)
 
-  return jsonify({"status": "ignored"})
+  return jsonify({"status": "ok"})
 
 
 if __name__ == "__main__":
