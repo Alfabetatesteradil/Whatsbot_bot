@@ -6,10 +6,8 @@ app = Flask(__name__)
 
 BOT_START_TIME = datetime.now()
 
-# База данных пользователей (в памяти)
 users = {}
 
-# Базовые ранги (до умножения на перерождения)
 RANKS = [
     ("Дерево", 50),
     ("Уголь", 100),
@@ -20,7 +18,6 @@ RANKS = [
 
 
 def get_uptime():
-  """Аптайм бота без сбоев"""
   delta = datetime.now() - BOT_START_TIME
   days = delta.days
   hours, rem = divmod(delta.seconds, 3600)
@@ -34,7 +31,6 @@ def get_uptime():
 
 
 def get_user(user_id):
-  """Инициализация игрока"""
   if user_id not in users:
     users[user_id] = {
         "xp": 0,
@@ -49,23 +45,20 @@ def get_user(user_id):
             "diamond": 0,
             "obsidian": 0,
         },
-        "has_held_obsidian": False,  # Флаг открытия обсидиана
+        "has_held_obsidian": False,
         "ludoman_charges": 0,
-        "cool_until": None,  # Буст "Крутой Крутой"
-        "dobri_charges": 0,  # Заряды "Добри :3"
-        "lucky_until": None,  # Буст "Везучий случай"
+        "cool_until": None,
+        "dobri_charges": 0,
+        "lucky_until": None,
     }
   return users[user_id]
 
 
 def add_xp(user, amount):
-  """Добавление XP с учетом буста 'Крутой Крутой' и усложнением рангов"""
   if user["cool_until"] and datetime.now() < user["cool_until"]:
     amount *= 2
 
   user["xp"] += amount
-
-  # Рассчитываем порог с учетом удваивающейся сложности
   multiplier = user["restarts"] + 1
   total_max = sum(limit * multiplier for _, limit in RANKS)
 
@@ -77,14 +70,11 @@ def add_xp(user, amount):
 
 
 def bite_coins(user):
-  """Кулинарные вкусы Золотой Кошки"""
   coins = user["coins"]
 
-  # 1. Защита: Если есть Обсидиан — кошка в панике!
   if coins["obsidian"] > 0:
     return "😱 Кошка увидела Обсидиан, испугалась и отскочила! Вы в безопасности!"
 
-  # 2. Хрустит мелочью
   for c_type, c_name in [
       ("bronze", "Бронзовую"),
       ("copper", "Медную"),
@@ -94,12 +84,10 @@ def bite_coins(user):
       coins[c_type] -= 1
       return f"😾 КУСЬ! Кошка с хрустом съела вашу {c_name} монету! 🪙"
 
-  # 3. Золото ест редко (1% шанс) — свои же!
   if coins["gold"] > 0 and random.random() < 0.01:
     coins["gold"] -= 1
     return "🧀 КУСЬ! Внезапно кошка откусила кусочек от Золотой монеты! (Своих не едят, но тут не удержалась!)"
 
-  # 4. Об Алмаз сломает зуб
   if coins["diamond"] > 0:
     return "🦷 КРАК! Кошка попыталась грызть Алмаз, чуть не сломала зуб и удрала!"
 
@@ -107,12 +95,10 @@ def bite_coins(user):
 
 
 def process_command(user_id, user_name, msg):
-  """Главный обработчик команд"""
   msg_clean = msg.strip()
   msg_lower = msg_clean.lower()
   user = get_user(user_id)
 
-  # --- 1. !меню ---
   if msg_lower == "!меню":
     return (
         "📜 *МЕНЮ КОМАНД* 📜\n"
@@ -120,17 +106,14 @@ def process_command(user_id, user_name, msg):
         "!ранг я — ваш профиль и монеты\n"
         "!трейд [XP] — обмен 5 XP на 1 Бронзу\n"
         "!кошка — погладить Золотую Кошку\n"
-        "!лотерея [1/2/3] — испытать удачу\n"
-        "!число [мин] [макс] — генератор чисел"
+        "!лотерея [1/2/3] — испытать удачу"
     )
 
-  # --- 2. !пинг ---
   elif msg_lower == "!пинг":
     return (
         f"🏓 *Понг!*\n⚡ Задержка: 42 мс\n⏱ *Время работы:* {get_uptime()}"
     )
 
-  # --- 3. !ранг ---
   elif msg_lower.startswith("!ранг"):
     xp = user["xp"]
     restarts = user["restarts"]
@@ -148,7 +131,13 @@ def process_command(user_id, user_name, msg):
     if not rank_str:
       rank_str = f"Алмаз {limit * multiplier}/{limit * multiplier}"
 
-    # Статус Крутой Крутой
+    # Подготовка строк эффектов без ошибок синтаксиса
+    ludoman_str = (
+        f"{user['ludoman_charges']} шт."
+        if user["ludoman_charges"] > 0
+        else "Не имеется"
+    )
+
     cool_str = "Не имеется"
     if user["cool_until"] and datetime.now() < user["cool_until"]:
       rem = user["cool_until"] - datetime.now()
@@ -156,7 +145,14 @@ def process_command(user_id, user_name, msg):
       mins, _ = divmod(r, 60)
       cool_str = f"{hrs:02d}:{mins:02d} осталось"
 
-    # Монеты
+    dobri_str = "Имеется" if user["dobri_charges"] > 0 else "Не имеется"
+
+    lucky_str = (
+        "Имеется"
+        if (user["lucky_until"] and datetime.now() < user["lucky_until"])
+        else "Не имеется"
+    )
+
     c = user["coins"]
     coins_str = (
         f"Бронза : {c['bronze']}, Медь : {c['copper']}, Железо : {c['iron']},"
@@ -169,19 +165,15 @@ def process_command(user_id, user_name, msg):
     return (
         f"/// @{user_name}, {rank_str} ///\n"
         f"{user['word1']} ; {user['word2']}\n"
-        f"\\\\\\ Перерождения : {restarts} \\\\\\ \n"
+        f"\\\\\\ Перерождения : {restarts} \\\\\\\n"
         f"Эффекты:\n"
-        f'"Лудоман" :'
-        f" {f'{user[\"ludoman_charges\"]} шт.' if user['ludoman_charges'] > 0 else 'Не имеется'}\n"
+        f'"Лудоман" : {ludoman_str}\n'
         f'"Крутой Крутой" : {cool_str}\n'
-        f'"Добри :3" :'
-        f" {'Имеется' if user['dobri_charges'] > 0 else 'Не имеется'}\n"
-        f'"Везучий случай" :'
-        f" {'Имеется' if (user['lucky_until'] and datetime.now() < user['lucky_until']) else 'Не имеется'}\n"
+        f'"Добри :3" : {dobri_str}\n'
+        f'"Везучий случай" : {lucky_str}\n'
         f"Монеты : {coins_str}"
     )
 
-  # --- 4. !трейд ---
   elif msg_lower.startswith("!трейд"):
     parts = msg_lower.split()
     if len(parts) == 2 and parts[1].isdigit():
@@ -196,7 +188,6 @@ def process_command(user_id, user_name, msg):
       return f"✅ Обменяно {val} XP на {gained} Бронзовых монет!"
     return "🎟 Используйте: `!трейд [число_кратное_5]`"
 
-  # --- 5. !кошка ---
   elif msg_lower in ["!кошка", "!погладь"]:
     if user["dobri_charges"] > 0:
       user["dobri_charges"] -= 1
@@ -216,7 +207,6 @@ def process_command(user_id, user_name, msg):
     else:
       return bite_coins(user)
 
-  # --- 6. !лотерея ---
   elif msg_lower.startswith("!лотерея"):
     parts = msg_lower.split()
     if len(parts) < 2 or parts[1] not in ["1", "2", "3"]:
@@ -283,4 +273,4 @@ def webhook():
 
 if __name__ == "__main__":
   app.run(host="0.0.0.0", port=5000)
-  
+      
