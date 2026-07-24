@@ -9,8 +9,6 @@ app = Flask(__name__)
 # ==========================================
 # 🔑 ДАННЫЕ ИЗ GREEN API:
 ID_INSTANCE = "71072260715"
-
-# ⚠️ Если твой токен изменился, вставь новый ниже:
 API_TOKEN = "38c0a3003c22469cad11461cd9f72335793bd5303fe8450baf"
 # ==========================================
 
@@ -206,14 +204,16 @@ def process_command(user_id, user_name, msg):
     return "🎟 Используйте: `!трейд [число_кратное_5]`"
 
   elif msg_lower in ["!кошка", "!погладь"]:
+    # При наличии заряда "Добри :3" даём ровно 480 XP (заменяет спавн монет)
     if user["dobri_charges"] > 0:
       user["dobri_charges"] -= 1
-      add_xp(user, 20)
+      add_xp(user, 480)
       return (
-          "😻 Кошка «Добри :3» не стала кусать вас! (+20 XP). Зарядов"
-          f" осталось: {user['dobri_charges']}"
+          "😻 Кошка «Добри :3» не стала кусать вас и подарила *+480 XP*!"
+          f" Зарядов осталось: {user['dobri_charges']}"
       )
 
+    # Обычное поглаживание
     if random.random() < 0.01:
       old_xp = user["xp"]
       add_xp(user, old_xp)
@@ -258,14 +258,16 @@ def process_command(user_id, user_name, msg):
         add_xp(user, 500)
         return "🟡 Золотой выигрыш! +500 XP!"
       elif chance <= 98:
-        user["restarts"] += 1
+        add_xp(user, 1000)
         return (
-            "💎 *АЛМАЗНЫЙ ВЫИГРЫШ!* Вы мгновенно получили *+1 ПЕРЕРОЖДЕНИЕ*! 🔥"
+            "💎 *АЛМАЗНЫЙ ВЫИГРЫШ!* Вы выиграли крупный куш и получили *+1000"
+            " XP*! 🔥"
         )
       else:
-        user["restarts"] += 2
+        add_xp(user, 3000)
         return (
-            "🎰 💰 *MEGA JACKPOT!!!* Вы выиграли *+2 ПЕРЕРОЖДЕНИЯ ЗА РАЗ!* 💰🎰"
+            "🎰 💰 *MEGA JACKPOT!!!* Вы сорвали мега-куш и получили *+3000 XP*!"
+            " 💰🎰"
         )
 
   return None
@@ -274,11 +276,9 @@ def process_command(user_id, user_name, msg):
 @app.route("/webhook", methods=["POST"])
 def webhook():
   data = request.get_json(silent=True) or {}
-  print("Получен webhook:", data, flush=True)
 
   type_webhook = data.get("typeWebhook")
 
-  # Обрабатываем входящие от других и исходящие с телефона сообщения
   allowed_types = [
       "incomingMessageReceived",
       "outgoingMessageReceived",
@@ -289,14 +289,21 @@ def webhook():
     message_data = data.get("messageData", {})
     type_message = message_data.get("typeMessage")
 
-    # Извлекаем текст
     text = ""
+
     if type_message == "textMessage":
       text = message_data.get("textMessageData", {}).get("textMessage", "")
-    elif type_message == "extendedTextMessage":
-      text = message_data.get("extendedTextMessageData", {}).get("text", "")
 
-    # Данные отправителя и чата
+    elif type_message in ["extendedTextMessage", "quotedMessage"]:
+      ext_data = message_data.get("extendedTextMessageData", {})
+      text = ext_data.get("text", "")
+      if not text:
+        text = (
+            message_data.get("quotedMessage", {})
+            .get("textMessageData", {})
+            .get("textMessage", "")
+        )
+
     sender_data = data.get("senderData", {})
     sender_id = sender_data.get("sender") or data.get("chatId", "unknown")
     sender_name = sender_data.get("senderName", "Игрок")
@@ -305,6 +312,11 @@ def webhook():
         data.get("chatId")
         or sender_data.get("chatId")
         or data.get("keyRemoteJid")
+    )
+
+    print(
+        f"Распознанный текст: '{text}' от {sender_name} в чате {chat_id}",
+        flush=True,
     )
 
     if text and chat_id:
@@ -323,4 +335,4 @@ def home():
 if __name__ == "__main__":
   port = int(os.environ.get("PORT", 5000))
   app.run(host="0.0.0.0", port=port)
-    
+        
