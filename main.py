@@ -16,10 +16,12 @@ API_TOKEN = "38c0a3003c22469cad11461cd9f72335793bd5303fe8450baf"
 BOT_START_TIME = datetime.now()
 users = {}
 
-# Хранилища состояний игр и дуэлей
-active_duels = {}
-active_quiz = {}
-active_tictactoe = {}
+# Состояния активных игр
+active_duels = {}  # chat_id: {initiator_id, initiator_name, bet}
+active_quiz = {}  # chat_id: {question, answer}
+active_tictactoe = (
+    {}
+)  # chat_id: {p1_id, p1_name, p2_id, p2_name, turn_id, board}
 
 RANKS = [
     ("Дерево", 50),
@@ -39,7 +41,6 @@ RUSSIAN_QUIZ = [
     {"q": "Что означает слово «ВЫЯ»?", "a": "шея"},
     {"q": "Что означает слово «ЛАНИТЫ»?", "a": "щеки"},
     {"q": "Что означает слово «РАМЕНА»?", "a": "плечи"},
-    {"q": "Что означает слово «ДЕСНИЦА»?", "a": "рука"},
     {"q": "Что означает слово «ЗДРАВИЕ»?", "a": "здоровье"},
     {"q": "Что означает слово «ОЧИ»?", "a": "глаза"},
     {"q": "Что означает слово «ЧАТА»?", "a": "монета"},
@@ -50,6 +51,7 @@ RUSSIAN_QUIZ = [
     {"q": "Что означает слово «ПЕЧАЛЬ»?", "a": "грусть"},
     {"q": "Что означает слово «ВРАЧ»?", "a": "доктор"},
     {"q": "Что означает слово «ГЛАГОЛ»?", "a": "слово"},
+    {"q": "Что означает слово «ПРИЗРАК»?", "a": "тень"},
 ]
 
 
@@ -81,8 +83,8 @@ def get_user(user_id):
     users[user_id] = {
         "xp": 0,
         "restarts": 0,
-        "word1": "Слово 1",
-        "word2": "Слово 2",
+        "word1": "Слово1!",
+        "word2": "Слово2!",
         "coins": {
             "bronze": 0,
             "copper": 0,
@@ -92,12 +94,18 @@ def get_user(user_id):
             "obsidian": 0,
         },
         "has_held_obsidian": False,
-        "ludoman_charges": 0,
         "cool_until": None,
         "dobri_charges": 0,
-        "lucky_until": None,
+        "ludoman_charges": 0,
     }
   return users[user_id]
+
+
+def check_obsidian_announcement(user, user_name):
+  if user["coins"]["obsidian"] > 0 and not user["has_held_obsidian"]:
+    user["has_held_obsidian"] = True
+    return f"@{user_name} *говорят легенды что @{user_name} выковал Обсидиан! Похволяйте его!*"
+  return None
 
 
 def add_xp(user, amount):
@@ -146,23 +154,38 @@ def process_command(chat_id, user_id, user_name, msg):
         "📜 *ПОЛНОЕ МЕНЮ КОМАНД* 📜\n\n"
         "⚙️ *ОСНОВНОЕ:*\n"
         "• `!пинг` — задержка и аптайм бота\n"
-        "• `!ранг` — ваш профиль, монеты и уровень\n"
-        "• `!число` — случайное число (по умолч. 1-100, или `!число от X до"
-        " Y`)\n\n"
-        "🪙 *ЭКОНОМИКА И ТОРГОВЛЯ:*\n"
-        "• `!магазин` — виртуальный магазин предметов\n"
+        "• `!ранг` — детальная карточка профиля\n"
+        "• `!админ` — список администраторов\n"
+        "• `!апельсин` — цитата про апельсины и яблоки\n"
+        "• `!число` — случайное число (или `!число от X до Y`)\n\n"
+        "🪙 *ЭКОНОМИКА:*\n"
+        "• `!магазин` — каталог товаров\n"
         "• `!трейд [XP]` — обмен XP на Бронзовые монеты\n"
-        "• `!межтрейд` — межсерверный обмен ресурсами\n\n"
+        "• `!межтрейд` — межсерверный рынок\n\n"
         "🐱 *ИНТЕРАКТИВ:*\n"
-        "• `!кошка` — погладить Золотую Кошку\n\n"
+        "• `!кошка` — погладить кошку\n\n"
         "🎮 *МИНИ-ИГРЫ:*\n"
-        "• `!лотерея [1/2/3]` — испытать удачу в билетах\n"
-        "• `!дуэль @игрок [ставка]` — вызов на дуэль на XP\n"
+        "• `!дуэль [ставка]` — вызов на дуэль\n"
         "• `!рулетка [ставка]` — русская рулетка (1/6 шанс x5)\n"
-        "• `!викторина` — викторина по русскому языку (`!ответ [слово]`)\n"
-        "• `!крестики @игрок` — игра в крестики-нолики (`!ход [1-9]`)"
+        "• `!викторина` — вопрос по русскому языку (`!ответ [слово]`)\n"
+        "• `!крестики` — сыграть в крестики-нолики (`!ход 1-9`)"
     )
 
+  # ================= 🤫 СЕКРЕТНЫЕ И АДМИН КОМАНДЫ =================
+  elif msg_lower == "!альтик":
+    return "*АЛЬТИК ЛУЧШИЙ, АЛЬТИК ЛУЧШИЙ В МИРЕ АДМИН НА СВЕТЕ*"
+
+  elif msg_lower == "!админ":
+    return (
+        "👑 *СПИСОК АДМИНИСТРАТОРОВ:* 👑\n\n"
+        f"1. @{user_name} — Главный Создатель / Владелец\n"
+        "2. Бот-Помощник — Модератор"
+    )
+
+  elif msg_lower == "!апельсин":
+    return "ХАХАХАХ АПЕЛЬСИН🍊, ЯБЛОКО ЛУЧШЕ🍎🍎🍏🍏"
+
+  # ================= ⚡ ПИНГ =================
   elif msg_lower == "!пинг":
     start_time = time.time()
     try:
@@ -171,70 +194,81 @@ def process_command(chat_id, user_id, user_name, msg):
       ping_ms = int((time.time() - start_time) * 1000)
     except Exception:
       ping_ms = "N/A"
-
     return (
         f"🏓 *Понг!*\n⚡ *Задержка:* {ping_ms} мс\n⏱ *Время работы:*"
         f" {get_uptime()}"
     )
 
-  # ================= 🎲 РАНДОМ ЧИСЛО =================
+  # ================= 🎲 ЧИСЛО =================
   elif msg_lower.startswith("!число"):
     clean_msg = (
         msg_lower.replace("!число", "").replace("от", "").replace("до", "")
     )
     parts = clean_msg.split()
-
-    min_val = 1
-    max_val = 100
-
-    if len(parts) >= 2:
-      if parts[0].isdigit() and parts[1].isdigit():
-        val1 = int(parts[0])
-        val2 = int(parts[1])
-        min_val = min(val1, val2)
-        max_val = max(val1, val2)
+    min_val, max_val = 1, 100
+    if len(parts) >= 2 and parts[0].isdigit() and parts[1].isdigit():
+      v1, v2 = int(parts[0]), int(parts[1])
+      min_val, max_val = min(v1, v2), max(v1, v2)
     elif len(parts) == 1 and parts[0].isdigit():
-      val = int(parts[0])
-      min_val = min(1, val)
-      max_val = max(1, val)
-
-    result = random.randint(min_val, max_val)
+      v = int(parts[0])
+      min_val, max_val = min(1, v), max(1, v)
     return (
         f"🎲 *Случайное число* [{min_val} – {max_val}]:\n👉"
-        f" *{result}*"
+        f" *{random.randint(min_val, max_val)}*"
     )
 
+  # ================= 📊 РАНГ =================
   elif msg_lower.startswith("!ранг"):
     xp, restarts = user["xp"], user["restarts"]
     multiplier = restarts + 1
     rank_str, curr = "", xp
+
     for r_name, limit in RANKS:
       max_xp = limit * multiplier
       if curr < max_xp:
-        rank_str = f"{r_name} {curr}/{max_xp}"
+        rank_str = f"{r_name} : {curr}/{max_xp}"
         break
       curr -= max_xp
     if not rank_str:
-      rank_str = f"Алмаз {limit * multiplier}/{limit * multiplier}"
+      rank_str = f"Алмаз : {limit * multiplier}/{limit * multiplier}"
+
+    effects = []
+    if user["cool_until"] and datetime.now() < user["cool_until"]:
+      effects.append("Крутой Крутой (x2 XP)")
+    if user["dobri_charges"] > 0:
+      effects.append(f"Добри :3 ({user['dobri_charges']} защ.)")
+    if user["ludoman_charges"] > 0:
+      effects.append(f"Лудоман ({user['ludoman_charges']} зар.)")
+
+    effects_str = ", ".join(effects) if effects else "*нет эффектов*"
 
     c = user["coins"]
     coins_str = (
-        f"Бронза:{c['bronze']}, Медь:{c['copper']}, Железо:{c['iron']},"
-        f" Золото:{c['gold']}, Алмаз:{c['diamond']}"
-    )
-    return (
-        f"/// @{user_name}, {rank_str} ///\n\\\\\\ Перерождения : {restarts}"
-        f" \\\\\\\nМонеты : {coins_str}"
+        f"Бронза-{c['bronze']} Медь-{c['copper']} Железо-{c['iron']}"
+        f" Золото-{c['gold']} Алмаз-{c['diamond']}"
     )
 
-  # ================= 🛒 МАГАЗИН И ТРЕЙДЫ =================
+    if user["has_held_obsidian"] or c["obsidian"] > 0:
+      coins_str += f" Обсидиан-{c['obsidian']}"
+
+    return (
+        f"@{user_name}\n"
+        f"{rank_str}\n"
+        f"{user['word1']}\n"
+        f"Перерождений : {restarts}\n"
+        f"{user['word2']}\n"
+        f"Эффекты : {effects_str}\n"
+        f"Денежки : {coins_str}"
+    )
+
+  # ================= 🛒 МАГАЗИН И ТРЕЙД =================
   elif msg_lower == "!магазин":
     return (
         "🛒 *МАГАЗИН ПРЕДМЕТОВ* 🛒\n\n"
-        "1. Эффект «Добри :3» — 3 Железные монеты (защита от кошки + 480 XP)\n"
-        "2. Эффект «Крутой Крутой» — 1 Золотая монета (удвоение XP на 1 час)\n"
-        "3. Эффект «Лудоман» — 5 Медных монет (+удача в лотерее)\n\n"
-        "💡 Для покупки напишите: `!купить [номер_товара]`"
+        "1. Эффект «Добри :3» — 3 Железные монеты\n"
+        "2. Эффект «Крутой Крутой» — 1 Золотая монета\n"
+        "3. Эффект «Лудоман» — 5 Медных монет\n\n"
+        "💡 Покупка: `!купить [номер]`"
     )
 
   elif msg_lower.startswith("!трейд"):
@@ -242,18 +276,19 @@ def process_command(chat_id, user_id, user_name, msg):
     if len(parts) == 2 and parts[1].isdigit():
       val = int(parts[1])
       if val % 5 != 0 or user["xp"] < val:
-        return "❌ Ошибка! Число должно быть кратно 5 и хватать XP."
+        return "❌ Число должно быть кратно 5 и хватать XP!"
       user["xp"] -= val
       user["coins"]["bronze"] += val // 5
-      return f"✅ Обменяно {val} XP на {val // 5} Бронзовых монет!"
+
+      obs_msg = check_obsidian_announcement(user, user_name)
+      res = f"✅ Обменяно {val} XP на {val // 5} Бронзовых монет!"
+      return f"{res}\n\n{obs_msg}" if obs_msg else res
     return "🎟 Используйте: `!трейд [число_кратное_5]`"
 
   elif msg_lower == "!межтрейд":
     return (
-        "🌐 *МЕЖСЕРВЕРНЫЙ ТРЕЙД* 🌐\n"
-        "Система межсерверного обмена активна!\n"
-        "Чтобы выставить лот или принять предложение с другого сервера, используйте:"
-        " `!межтрейд создать [монета] [количество] [цена]`"
+        "🌐 *МЕЖСЕРВЕРНЫЙ ТРЕЙД* 🌐\nСоздать лот:"
+        " `!межтрейд создать [монета] [кол-во] [цена]`"
     )
 
   # ================= 🐱 КОШКА =================
@@ -261,56 +296,62 @@ def process_command(chat_id, user_id, user_name, msg):
     if user["dobri_charges"] > 0:
       user["dobri_charges"] -= 1
       add_xp(user, 480)
-      return f"😻 «Добри :3» подарила вам *+480 XP*! Осталось зарядов: {user['dobri_charges']}"
+      return f"😻 «Добри :3» подарила *+480 XP*! Осталось зарядов: {user['dobri_charges']}"
     add_xp(user, 10)
-    return "😾 Кошка слегка помурчала и дала +10 XP!"
+    return "😾 Кошка помурчала и дала +10 XP!"
 
   # ================= ⚔️ ДУЭЛИ =================
   elif msg_lower.startswith("!дуэль"):
     parts = msg_lower.split()
-    if len(parts) >= 3 and parts[2].isdigit():
-      bet = int(parts[2])
-      target_tag = parts[1]
-      if user["xp"] < bet:
-        return "❌ У вас недостаточно XP для такой ставки!"
-      active_duels[target_tag] = {
-          "initiator_id": user_id,
-          "initiator_name": user_name,
-          "target_tag": target_tag,
-          "bet": bet,
-      }
-      return (
-          f"⚔️ @{user_name} вызывает {target_tag} на дуэль на *{bet} XP*!\n"
-          f"Напишите `!принять` или `!отказ`."
-      )
+    bet = 0
+    if len(parts) >= 2 and parts[-1].isdigit():
+      bet = int(parts[-1])
+
+    if user["xp"] < bet:
+      return f"❌ У вас недостаточно XP! Баланс: {user['xp']} XP."
+
+    active_duels[chat_id] = {
+        "initiator_id": user_id,
+        "initiator_name": user_name,
+        "bet": bet,
+    }
+    return (
+        f"⚔️ {user_name} вызывает любого на дуэль на *{bet} XP*!\nКому-нибудь"
+        " написать: `!принять` или `!отказ`"
+    )
 
   elif msg_lower == "!принять":
-    found_key = None
-    for tag, d in active_duels.items():
-      if tag in msg_lower or tag.replace("@", "") in user_id:
-        found_key = tag
-        break
-    if not found_key and active_duels:
-      found_key = list(active_duels.keys())[0]
+    if chat_id not in active_duels:
+      return "❌ В этом чате нет активных вызовов на дуэль!"
 
-    if found_key:
-      d = active_duels.pop(found_key)
-      bet = d["bet"]
-      init_user = get_user(d["initiator_id"])
+    d = active_duels.pop(chat_id)
+    if user_id == d["initiator_id"]:
+      return "❌ Нельзя принять дуэль у самого себя!"
 
-      if user["xp"] < bet or init_user["xp"] < bet:
-        return "❌ У одного из участников не хватает XP!"
+    bet = d["bet"]
+    init_user = get_user(d["initiator_id"])
 
-      winner = random.choice([user_id, d["initiator_id"]])
-      loser = d["initiator_id"] if winner == user_id else user_id
-      get_user(winner)["xp"] += bet
-      get_user(loser)["xp"] -= bet
-      win_name = user_name if winner == user_id else d["initiator_name"]
-      return f"💥 ДУЭЛЬ СОСТОЯЛАСЬ! Победил @{win_name} и забирает *+{bet} XP*!"
+    if user["xp"] < bet or init_user["xp"] < bet:
+      return "❌ У одного из участников больше нет нужного количества XP!"
 
-  elif msg_lower == "!отказ" and active_duels:
-    active_duels.clear()
-    return "🛡 Дуэль была отклонена!"
+    if random.choice([True, False]):
+      winner_id, winner_name = user_id, user_name
+      loser_id, loser_name = d["initiator_id"], d["initiator_name"]
+    else:
+      winner_id, winner_name = d["initiator_id"], d["initiator_name"]
+      loser_id, loser_name = user_id, user_name
+
+    get_user(winner_id)["xp"] += bet
+    get_user(loser_id)["xp"] -= bet
+    return (
+        f"💥 ДУЭЛЬ СОСТОЯЛАСЬ!\nПобедил *{winner_name}* и забрал *+{bet}"
+        f" XP* у {loser_name}!"
+    )
+
+  elif msg_lower == "!отказ":
+    if chat_id in active_duels:
+      del active_duels[chat_id]
+      return "🛡 Дуэль отклонена!"
 
   # ================= 💥 РУЛЕТКА =================
   elif msg_lower.startswith("!рулетка"):
@@ -327,11 +368,11 @@ def process_command(chat_id, user_id, user_name, msg):
       else:
         return f"🪹 *Щёлк...* Барабан пуст. Вы потеряли {bet} XP."
 
-  # ================= 📜 ВИКТОРИНА (20 СЛОВ) =================
+  # ================= 📚 ВИКТОРИНА =================
   elif msg_lower == "!викторина":
     q_data = random.choice(RUSSIAN_QUIZ)
     active_quiz[chat_id] = q_data
-    return f"📚 *Викторина по русскому языку:*\n{q_data['q']}\n\nОтветьте с помощью: `!ответ [слово]`"
+    return f"📚 *Вопрос:* {q_data['q']}\n\nОтвет командой: `!ответ [слово]`"
 
   elif msg_lower.startswith("!ответ"):
     if chat_id in active_quiz:
@@ -340,66 +381,78 @@ def process_command(chat_id, user_id, user_name, msg):
       if ans == correct:
         del active_quiz[chat_id]
         add_xp(user, 150)
-        return (
-            f"🎉 Правильно, @{user_name}! Это действительно «{correct}»."
-            " Получено *+150 XP*!"
-        )
+        return f"🎉 Правильно, {user_name}! Это «{correct}». *+150 XP*!"
       else:
-        return "❌ Неверно, попробуйте ещё раз!"
+        return "❌ Неверно!"
 
   # ================= ❌⭕ КРЕСТИКИ-НОЛИКИ =================
-  elif msg_lower.startswith("!крестики"):
-    parts = msg_lower.split()
-    if len(parts) >= 2:
-      opponent = parts[1]
-      active_tictactoe[chat_id] = {
-          "p1": user_id,
-          "p2": opponent,
-          "p1_name": user_name,
-          "p2_name": opponent,
-          "turn": user_id,
-          "board": [" "] * 9,
-      }
-      return (
-          f"🎮 Игра начинается! @{user_name} (❌) против {opponent} (⭕)!\n"
-          f"{render_board([' '] * 9)}\nХодит @{user_name}: напишите `!ход"
-          " [1-9]`"
-      )
+  elif msg_lower == "!крестики":
+    active_tictactoe[chat_id] = {
+        "p1_id": user_id,
+        "p1_name": user_name,
+        "p2_id": None,
+        "p2_name": None,
+        "turn_id": user_id,
+        "board": [" "] * 9,
+    }
+    return (
+        f"🎮 Игра создана!\nИгрок 1 (❌): *{user_name}*\n\nХодит"
+        f" *{user_name}*: напишите `!ход [1-9]`.\nВторой игрок подключится"
+        " автоматически при своем ходу!"
+    )
 
   elif msg_lower.startswith("!ход"):
-    if chat_id in active_tictactoe:
-      game = active_tictactoe[chat_id]
-      if user_id != game["turn"]:
-        return "⏳ Сейчас не ваш ход!"
-      parts = msg_lower.split()
-      if len(parts) == 2 and parts[1].isdigit():
-        pos = int(parts[1]) - 1
-        if 0 <= pos <= 8 and game["board"][pos] == " ":
-          symbol = "X" if user_id == game["p1"] else "O"
-          game["board"][pos] = symbol
+    if chat_id not in active_tictactoe:
+      return "❌ Игра не начата! Напишите `!крестики`."
 
-          if check_win(game["board"], symbol):
-            board_img = render_board(game["board"])
-            del active_tictactoe[chat_id]
-            add_xp(user, 200)
-            return (
-                f"🎉 ПОБЕДА! @{user_name} выиграл!\n{board_img}\nПолучено *+200"
-                " XP*!"
-            )
+    game = active_tictactoe[chat_id]
 
-          if " " not in game["board"]:
-            board_img = render_board(game["board"])
-            del active_tictactoe[chat_id]
-            return f"🤝 НИЧЬЯ!\n{board_img}"
+    if game["p2_id"] is None and user_id != game["p1_id"]:
+      game["p2_id"] = user_id
+      game["p2_name"] = user_name
 
-          game["turn"] = game["p2"] if user_id == game["p1"] else game["p1"]
-          next_name = (
-              game["p2_name"] if user_id == game["p1"] else game["p1_name"]
-          )
+    if user_id != game["turn_id"]:
+      curr_turn_name = (
+          game["p1_name"] if game["turn_id"] == game["p1_id"] else game["p2_name"]
+      )
+      return f"⏳ Сейчас не ваш ход! Ходит: *{curr_turn_name}*"
+
+    parts = msg_lower.split()
+    if len(parts) == 2 and parts[1].isdigit():
+      pos = int(parts[1]) - 1
+      if 0 <= pos <= 8 and game["board"][pos] == " ":
+        symbol = "X" if user_id == game["p1_id"] else "O"
+        game["board"][pos] = symbol
+
+        if check_win(game["board"], symbol):
+          b_img = render_board(game["board"])
+          del active_tictactoe[chat_id]
+          add_xp(user, 200)
           return (
-              f"Ход сделан!\n{render_board(game['board'])}\nСледующий ход:"
-              f" {next_name}"
+              f"🎉 ПОБЕДА! *{user_name}* выиграл!\n\n{b_img}\nПолучено *+200"
+              " XP*!"
           )
+
+        if " " not in game["board"]:
+          b_img = render_board(game["board"])
+          del active_tictactoe[chat_id]
+          return f"🤝 НИЧЬЯ!\n\n{b_img}"
+
+        if game["p2_id"] is None:
+          game["turn_id"] = "WAITING"
+          next_name = "Второй игрок"
+        else:
+          game["turn_id"] = (
+              game["p2_id"] if user_id == game["p1_id"] else game["p1_id"]
+          )
+          next_name = (
+              game["p2_name"] if user_id == game["p1_id"] else game["p1_name"]
+          )
+
+        return (
+            f"Ход сделан!\n\n{render_board(game['board'])}\nСледующий ход:"
+            f" *{next_name}*"
+        )
 
   return None
 
@@ -445,4 +498,4 @@ def home():
 if __name__ == "__main__":
   port = int(os.environ.get("PORT", 5000))
   app.run(host="0.0.0.0", port=port)
-    
+      
