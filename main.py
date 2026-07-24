@@ -146,7 +146,9 @@ def process_command(chat_id, user_id, user_name, msg):
         "📜 *ПОЛНОЕ МЕНЮ КОМАНД* 📜\n\n"
         "⚙️ *ОСНОВНОЕ:*\n"
         "• `!пинг` — задержка и аптайм бота\n"
-        "• `!ранг` — ваш профиль, монеты и уровень\n\n"
+        "• `!ранг` — ваш профиль, монеты и уровень\n"
+        "• `!число` — случайное число (по умолч. 1-100, или `!число от X до"
+        " Y`)\n\n"
         "🪙 *ЭКОНОМИКА И ТОРГОВЛЯ:*\n"
         "• `!магазин` — виртуальный магазин предметов\n"
         "• `!трейд [XP]` — обмен XP на Бронзовые монеты\n"
@@ -173,6 +175,33 @@ def process_command(chat_id, user_id, user_name, msg):
     return (
         f"🏓 *Понг!*\n⚡ *Задержка:* {ping_ms} мс\n⏱ *Время работы:*"
         f" {get_uptime()}"
+    )
+
+  # ================= 🎲 РАНДОМ ЧИСЛО =================
+  elif msg_lower.startswith("!число"):
+    clean_msg = (
+        msg_lower.replace("!число", "").replace("от", "").replace("до", "")
+    )
+    parts = clean_msg.split()
+
+    min_val = 1
+    max_val = 100
+
+    if len(parts) >= 2:
+      if parts[0].isdigit() and parts[1].isdigit():
+        val1 = int(parts[0])
+        val2 = int(parts[1])
+        min_val = min(val1, val2)
+        max_val = max(val1, val2)
+    elif len(parts) == 1 and parts[0].isdigit():
+      val = int(parts[0])
+      min_val = min(1, val)
+      max_val = max(1, val)
+
+    result = random.randint(min_val, max_val)
+    return (
+        f"🎲 *Случайное число* [{min_val} – {max_val}]:\n👉"
+        f" *{result}*"
     )
 
   elif msg_lower.startswith("!ранг"):
@@ -416,4 +445,4 @@ def home():
 if __name__ == "__main__":
   port = int(os.environ.get("PORT", 5000))
   app.run(host="0.0.0.0", port=port)
-            
+    
