@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 import os
 import random
+import time
 from flask import Flask, jsonify, request
 import requests
 
@@ -28,7 +29,6 @@ RANKS = [
     ("Алмаз", 500),
 ]
 
-# 📚 БАЗА ИЗ 20 СЛОВ РУССКОГО ЯЗЫКА:
 RUSSIAN_QUIZ = [
     {"q": "Что означает слово «ОКО»?", "a": "глаз"},
     {"q": "Что означает слово «ЧЕЛО»?", "a": "лоб"},
@@ -162,7 +162,18 @@ def process_command(chat_id, user_id, user_name, msg):
     )
 
   elif msg_lower == "!пинг":
-    return f"🏓 *Понг!*\n⏱ *Время работы:* {get_uptime()}"
+    start_time = time.time()
+    try:
+      url = f"https://api.green-api.com/waInstance{ID_INSTANCE}/getStateInstance/{API_TOKEN}"
+      requests.get(url, timeout=3)
+      ping_ms = int((time.time() - start_time) * 1000)
+    except Exception:
+      ping_ms = "N/A"
+
+    return (
+        f"🏓 *Понг!*\n⚡ *Задержка:* {ping_ms} мс\n⏱ *Время работы:*"
+        f" {get_uptime()}"
+    )
 
   elif msg_lower.startswith("!ранг"):
     xp, restarts = user["xp"], user["restarts"]
@@ -405,4 +416,4 @@ def home():
 if __name__ == "__main__":
   port = int(os.environ.get("PORT", 5000))
   app.run(host="0.0.0.0", port=port)
-    
+            
