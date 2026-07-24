@@ -8,7 +8,7 @@ app = Flask(__name__)
 
 # ==========================================
 # 🔑 ДАННЫЕ ИЗ GREEN API:
-ID_INSTANCE = "71072260715"
+ID_INSTANCE = "710722690715"
 API_TOKEN = "38c0a3003c22469cad11461cd9f72335793bd5303fe8450baf"
 # ==========================================
 
@@ -204,7 +204,6 @@ def process_command(user_id, user_name, msg):
     return "🎟 Используйте: `!трейд [число_кратное_5]`"
 
   elif msg_lower in ["!кошка", "!погладь"]:
-    # При наличии заряда "Добри :3" даём ровно 480 XP (заменяет спавн монет)
     if user["dobri_charges"] > 0:
       user["dobri_charges"] -= 1
       add_xp(user, 480)
@@ -213,7 +212,6 @@ def process_command(user_id, user_name, msg):
           f" Зарядов осталось: {user['dobri_charges']}"
       )
 
-    # Обычное поглаживание
     if random.random() < 0.01:
       old_xp = user["xp"]
       add_xp(user, old_xp)
@@ -335,4 +333,3 @@ def home():
 if __name__ == "__main__":
   port = int(os.environ.get("PORT", 5000))
   app.run(host="0.0.0.0", port=port)
-        
